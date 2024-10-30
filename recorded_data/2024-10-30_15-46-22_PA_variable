@@ -1,0 +1,17 @@
+#,polarity,mode,source,amplitude[mA],pulsewidth[us],interpulse[us],recovery[%],frequency[Hz],stimuDuration[ms],numTriggers,numRepetition,pain,accuracy
+0,Positive,Bi-phasic,Internal,0,1000,1,100,1,0,1,1,0,0
+1,Positive,Bi-phasic,Internal,0,1000,1,100,1,0,1,1,0,0
+2,Positive,Bi-phasic,Internal,0,1000,1,100,1,0,1,1,0,0
+3,Positive,Bi-phasic,Internal,0,1000,1,100,1,0,1,1,0,0
+4,Positive,Bi-phasic,Internal,0,1000,1,100,1,0,1,1,0,0
+5,Positive,Bi-phasic,Internal,0,1000,1,100,1,0,1,1,0,0
+6,Positive,Bi-phasic,Internal,0,1000,1,100,1,0,1,1,0,0
+7,Positive,Bi-phasic,Internal,0,1000,1,100,1,0,1,1,0,0
+8,Positive,Bi-phasic,Internal,0,1000,1,100,1,0,1,1,0,0
+9,Positive,Bi-phasic,Internal,0,1000,1,100,1,0,1,1,0,0
+10,Positive,Bi-phasic,Internal,1,1000,1,100,1,0,1,1,0,0
+11,Positive,Bi-phasic,Internal,1,1000,1,100,1,0,1,1,0,0
+12,Positive,Bi-phasic,Internal,1,1000,1,100,1,0,1,1,0,0
+13,Positive,Bi-phasic,Internal,1,1000,1,100,1,0,1,1,0,0
+14,Positive,Bi-phasic,Internal,1,1000,1,100,1,0,1,1,0,0
+15,Positive,Bi-phasic,Internal,1,1000,1,100,1,0,1,1,0,0

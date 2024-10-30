@@ -1,0 +1,4 @@
+#,polarity,mode,source,amplitude[mA],pulsewidth[us],interpulse[us],recovery[%],frequency[Hz],stimuDuration[ms],numTriggers,numRepetition,pain,accuracy
+0,Positive,Bi-phasic,Internal,0,1000,1,100,1,0,1,1,0,0
+1,Positive,Bi-phasic,Internal,0,1000,1,100,1,0,1,1,0,0
+2,Positive,Bi-phasic,Internal,0,1000,1,100,1,0,1,1,0,0
