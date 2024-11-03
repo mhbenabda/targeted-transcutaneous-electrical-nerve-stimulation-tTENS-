@@ -1,3 +1,7 @@
+# Author: Mohamed Habib Ben Abda
+# Date: Fall semester 2024
+# Mapping window
+
 from PyQt5.QtWidgets import QMainWindow, QDialog, QApplication
 from PyQt5.uic import loadUi
 from API.d128_controller import D128Controller
@@ -24,8 +28,6 @@ class Mapping_view(QMainWindow):
 
         self.PB_UPDATE.clicked.connect(self.update_DS8R)
         self.PB_START_STOP.clicked.connect(self.start_stop)
-
-        
 
     def setup_param_ranges(self):
         self.SB_PA.setRange(0.0, 50.0) # Stop user from intering dangerous current amplitude here
