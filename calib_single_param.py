@@ -4,7 +4,7 @@
 
 from PyQt5.QtWidgets import QMainWindow, QDialog, QApplication, QButtonGroup
 from PyQt5.uic import loadUi
-from calib_experiment import Calib_subject_view
+from calib_experiment import Experiment_view
 import numpy as np
 
 max_PA = 10.0 # [mA] define max amplitude here for safety reasons
@@ -396,7 +396,7 @@ class Calib_single_param_view(QMainWindow):
             variable_param = {}
             self.format_param(fixed_param_hw, fixed_param_algo, variable_param)
             # Open Experiment window
-            self.experiment_window = Calib_subject_view(fixed_param_hw, fixed_param_algo, variable_param)
+            self.experiment_window = Experiment_view(fixed_param_hw, fixed_param_algo, variable_param)
             self.experiment_window.show()
             # Close this window
             self.close() 

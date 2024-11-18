@@ -7,7 +7,6 @@ from API.d128_controller import D128Controller
 from mode_mapping import Mapping_view
 from mode_calibration import Calib_selector_view
 from calib_single_param import Calib_single_param_view
-from calib_experiment import Calib_subject_view
 
 class OperationModeWin(QDialog):
     def __init__(self):

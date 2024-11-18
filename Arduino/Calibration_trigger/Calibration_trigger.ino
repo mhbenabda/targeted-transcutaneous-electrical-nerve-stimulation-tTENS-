@@ -50,7 +50,7 @@ void loop() {
       // param1 -> freq
       // param2 -> num_triggers
       float T_half = ((1000 / param1)) / 2; // half period in ms
-      //Serial.println(T_half);
+      Serial.println("done");
       for (unsigned int i = 0; i < param2; i++){
         digitalWrite(TRIGGER, HIGH);
         delay(T_half);

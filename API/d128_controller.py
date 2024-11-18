@@ -3,9 +3,11 @@ import os
 
 class D128Controller:
     def __init__(self):
-        self.PATH_PROXY = ''  # Set your path
+        self.PATH_PROXY = ''  
         self.NAME_PROXY = 'D128RProxy.dll'
         self.ALIAS_PROXY = 'D128RProxy'
+        self.PATH_DLL = ''
+        self.NAME_DLL = 'D128API.dll'
 
         # Maps for user-friendly names to actual values
         self.D128Mode = {
@@ -59,7 +61,7 @@ class D128Controller:
 
         elif command.lower() == 'close':
             if len(args) == 1:
-                print('not implemented. useful to free resources') ### potential emprovement
+                # print('not implemented. useful to free resources') ### potential emprovement
                 success = self.Close()
             else:
                 print("Unexpected number of arguments for close command. It requires the d128 struct.")
@@ -204,17 +206,22 @@ class D128Controller:
         return success, self.d128
 
     def Init(self):
-        full_dll = os.path.join(self.PATH_PROXY, self.NAME_PROXY)
+        full_proxy = os.path.join(self.PATH_PROXY, self.NAME_PROXY)
+        full_dll = os.path.join(self.PATH_DLL, self.NAME_DLL)
 
         try:
-            self.lib = ctypes.CDLL(full_dll)
+            self.lib = ctypes.WinDLL(full_proxy) 
+            self.lib_original = ctypes.WinDLL(full_dll) 
             return True
         except OSError:
-            print(f"{full_dll} was not found!")
+            print(f"{full_dll} or {full_proxy} was not found!")
             return False
 
     def Close(self):
         # Implement the logic to close/unload the library if necessary
+        if self.lib is not None:
+            self.lib = None
+            print("Device closed and resources released.")
         return True
 
     def Trigger(self):
@@ -266,3 +273,7 @@ class D128Controller:
             return d128
 
 
+
+if __name__ == '__main__':
+    # Example usage
+    controller = D128Controller()
