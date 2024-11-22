@@ -2,11 +2,13 @@
 # Date: Fall semester 2024
 # API for DS8R Digitimer Stimulator
 import os
-#from ctypes import Structure, c_ubyte, c_ushort, c_int, POINTER, WINFUNCTYPE, c_void_p, byref, WinDLL #, sizeof, cast
 from ctypes import c_int, c_uint, c_void_p, Structure, Union, POINTER, WINFUNCTYPE, LittleEndianStructure, byref, WinDLL
 import ctypes
+import time
 
-ERROR_SUCCESS = {0, 1641, 3010, 3011}
+### Python implementation of a C-style API interface ###
+# This section below defines the C-level functions within the DLL. It's based on the D128-Example code provided from Digitimer
+ERROR_SUCCESS = {0, 1641, 3010, 3011} # full error list in winerror.h
 
 class STATEFLAGS(Union):
     class _Bits(LittleEndianStructure):
@@ -83,51 +85,12 @@ DGD128_Initialise = WINFUNCTYPE(c_int, POINTER(c_int), POINTER(c_int), DGClientI
 DGD128_Update = WINFUNCTYPE(c_int, c_int, POINTER(c_int), PD128, c_int, PD128, POINTER(c_int), DGClientUpdateProc, c_void_p)
 DGD128_Close = WINFUNCTYPE(c_int, POINTER(c_int), POINTER(c_int), DGClientCloseProc, c_void_p)
 
+### API ###
+# This API has been custom made at Institute of Neuroinformatics (INI) for out experiments
 class DS8RController:
     def __init__(self):
-        self.PATH_PROXY = ''  
-        self.NAME_PROXY = 'D128RProxy.dll'
-        self.ALIAS_PROXY = 'D128RProxy'
         self.PATH_DLL = ''
         self.NAME_DLL = 'D128API.dll'
-
-        # Maps for user-friendly names to actual values
-        self.D128Mode = {
-            'Mono-phasic': 1,
-            'Bi-phasic': 2,
-            'NoChange': 7
-        }
-
-        self.D128Pol = {
-            'Positive': 1,
-            'Negative': 2,
-            'Alternating': 3,
-            'NoChange': 7
-        }
-
-        self.D128Src = {
-            'Internal': 1,
-            'External': 2,
-            'NoChange': 7
-        }
-
-        self.D128Enabled = {
-            'True',
-            'False',
-            1,
-            0
-        }
-
-        self.d128 = {
-            'mode': 0,
-            'polarity': 0,
-            'source': 0,
-            'demand': 0,
-            'pulsewidth': 0,
-            'dwell': 0,
-            'recovery': 0,
-            'enabled': 0
-        }
 
         self.apiRef = c_int()          # Session reference
         self.retError = c_int()         # Initialization error
@@ -137,295 +100,290 @@ class DS8RController:
         self.CurrentState = D128()      # Used to store current state retrived from DLL
         self.NewState = D128()          # Used to set new state through DLL
 
-    def initialize(self):
+        # Maps for user-friendly names to actual values
+        self.DS8RMode = {
+            'Mono-phasic': 1,
+            'Bi-phasic': 2,
+            'NoChange': 7
+        }
+
+        self.DS8RPol = {
+            'Positive': 1,
+            'Negative': 2,
+            'Alternating': 3,
+            'NoChange': 7
+        }
+
+        self.DS8RSrc = {
+            'Internal': 1,   # (front panel)
+            'External': 2,   # (rear panel BNC analog input)
+            'NoChange': 7
+        }
+
+        self.DS8REnabled = {
+            True: 1,
+            False: 0
+        }
+
+    def Load(self):
+        '''
+        Loads DLL library used for controlling the DS8R stimulator
+        '''
+        full_dll = os.path.join(self.PATH_DLL, self.NAME_DLL)
+        try:
+            self.lib = WinDLL(full_dll) 
+            return True
+        except OSError:
+            print(f"{full_dll} was not found!") # or {full_proxy}
+            return False
+        
+    def Unload(self):
+        '''
+        Unloads DLL library used for controlling the DS8R stimulator
+        '''
+        if hasattr(self, 'lib'):
+            ctypes.windll.kernel32.FreeLibrary(self.lib._handle)
+            del self.lib
+            print('dll deleted')
+        else:
+            print('D128 DLL not loaded. Cannot initilize.')
+
+    def Initialize(self):
         '''
         Initializes the device and the current state of the device
         '''
-        if hasattr(self, 'lib_original'):
+        if hasattr(self, 'lib'):
             self.apiRef = c_int(0)
-            self.retError = self.lib_original.DGD128_Initialise(byref(self.apiRef), byref(self.retAPIError), None, None)
+            self.retError = self.lib.DGD128_Initialise(byref(self.apiRef), byref(self.retAPIError), None, None)
             # The first call is to simply fetch the size of the CurrentState structre which neesd to be allocated.
             if self.retError in ERROR_SUCCESS and self.retAPIError.value in ERROR_SUCCESS:
-                self.retError = self.lib_original.DGD128_Update(self.apiRef, byref(self.retAPIError), None, 0, None, byref(self.cbState), None, None)
+                self.retError = self.lib.DGD128_Update(self.apiRef, byref(self.retAPIError), None, 0, None, byref(self.cbState), None, None)
                 print('initilization successful ;)')
             else:
                 print('ERROR during initialization.')
                 print('Didin''t initialize! retError = ', self.retError, ' retAPIError = ', self.retAPIError.value)
         else:
             print('D128 DLL not loaded. Cannot initilize.')
-
-    def Close(self):
-        if hasattr(self, 'lib_original'):
-            if self.apiRef.value:
-                #print('before closing, apiRef: ', self.apiRef.value)
-                self.retError = self.lib_original.DGD128_Close(byref(self.apiRef), byref(self.retAPIError), None, None)
-                #print('after closing, apiRef: ', self.apiRef.value)
-            else:
-                print('Didin''t close! retError = ', self.retError, ' apiRef = ', self.apiRef.value)
-        else:
-            print('D188 Proxy Library not loaded. Open command must be called first.')
-        return True
-
-    def Load(self):
-        full_proxy = os.path.join(self.PATH_PROXY, self.NAME_PROXY)
-        full_dll = os.path.join(self.PATH_DLL, self.NAME_DLL)
-
-        try:
-            self.lib = ctypes.WinDLL(full_proxy) 
-            self.lib_original = ctypes.WinDLL(full_dll) 
-            return True
-        except OSError:
-            print(f"{full_dll} or {full_proxy} was not found!")
-            return False
-        
-    def Unload(self):
-        if hasattr(self, 'lib_original'):
-            ctypes.windll.kernel32.FreeLibrary(self.lib._handle)
-            del self.lib
-            print('proxy deleted')
-        if hasattr(self, 'lib_original'):
-            ctypes.windll.kernel32.FreeLibrary(self.lib_original._handle)
-            del self.lib_original
-            print('dll original deleted')
-
-    def D128ctrl(self, command, *args):
-        success = False
-        if command.lower() == 'open':
-            if len(args) == 0:
-                success = self.Load()
-                if success:
-                    self.initialize()
-                    self.d128.update({'mode': 0, 'polarity': 0, 'source': 0, 
-                                      'demand': 0, 'pulsewidth': 0, 
-                                      'dwell': 0, 'recovery': 0, 'enabled': 0})
-            else:
-                print("Unexpected number of arguments for open command. It accepts no arguments.")
-
-        elif command.lower() == 'close':
-            if len(args) == 1:
-                # print('not implemented. useful to free resources') ### potential emprovement
-                success = self.Close()
-            else:
-                print("Unexpected number of arguments for close command. It requires the d128 struct.")
-
-        elif command.lower() == 'trigger':
-            if len(args) == 1:
-                self.Trigger()
-                success = True
-            else:
-                print("Unexpected number of arguments for trigger command.")
-
-        elif command.lower() == 'upload':
-            if len(args) == 1:
-                self.d128 = args[0]
-                self.Set(self.d128)
-                success = True
-            else:
-                print("Unexpected number of arguments for upload command. It requires the d128 struct.")
-
-        elif command.lower() == 'status':
-            if len(args) == 1:
-                self.d128 = self.GetState(args[0])
-                success = True
-            else:
-                print("Unexpected number of arguments for status command. It requires the d128 struct.")
-
-        elif command.lower() == 'mode':
-            if len(args) == 2:
-                self.d128 = args[0]
-                mode_str = args[1]
-                if mode_str in self.D128Mode:
-                    self.d128['mode'] = self.D128Mode[mode_str]
-                else:
-                    print(f'Unknown mode type {mode_str}')
-                success = True
-            else:
-                print('Unexpected number of arguments for mode command')
-                print('\td128 - D128 struct returned by open command')
-                print('\tmode - ' + ', '.join(self.D128Mode.keys()))
-
-        elif command.lower() == 'polarity':
-            if len(args) == 2:
-                self.d128 = args[0]
-                pol_str = args[1]
-                if pol_str in self.D128Pol:
-                    self.d128['polarity'] = self.D128Pol[pol_str]
-                    success = True
-                else:
-                    print(f'Unknown polarity type {pol_str}')
-            else:
-                print('Unexpected number of arguments for polarity command')
-                print('\td128 - D128 struct returned by open command')
-                print('\tpolarity - ' + ', '.join(self.D128Pol.keys()))
-
-        elif command.lower() == 'source':
-            if len(args) == 2:
-                self.d128 = args[0]
-                src_str = args[1]
-                if src_str in self.D128Src:
-                    self.d128['source'] = self.D128Src[src_str]
-                    success = True
-                else:
-                    print(f'Unknown source type {src_str}')
-            else:
-                print('Unexpected number of arguments for source command')
-                print('\td128 - D128 struct returned by open command')
-                print('\tsource - ' + ', '.join(self.D128Src.keys()))
-        
-        elif command.lower() == 'enable':
-            if len(args) == 2:
-                self.d128 = args[0]
-                is_enabled = args[1]
-                if is_enabled in self.D128Enabled:
-                    if is_enabled:
-                        self.d128['enabled'] = 1
-                    else:
-                        self.d128['enabled'] = 0
-                    success = True
-                else:
-                    print(f'Unknown source type {is_enabled}')
-            else:
-                print('Unexpected number of arguments for enable command')
-                print('\td128 - D128 struct returned by open command')
-                print('\tenable - True or False (1 or 0)\n')
-
-        elif command.lower() == 'demand':
-            if len(args) == 2:
-                self.d128 = args[0]
-                pulse_amp = args[1]
-                if 0 <= pulse_amp <= 1000 :
-                    self.d128['demand'] = int(pulse_amp * 10)
-                    success = True
-                else:
-                    print(f'Pulse amplitude out or range')
-            else:
-                print('Unexpected number of arguments for demand command')
-                print('\td128 - D128 struct returned by open command')
-                print('\tdemand - float value between 0 and 1000. max one decimal point') 
-
-        elif command.lower() == 'pulsewidth':
-            if len(args) == 2:
-                self.d128 = args[0]
-                pulse_width = args[1]
-                if 50 <= pulse_width <= 2000 :
-                    self.d128['pulsewidth'] = pulse_width 
-                    success = True
-                else:
-                    print(f'Pulse width out or range')
-            else:
-                print('Unexpected number of arguments for pulsewidth command')
-                print('\td128 - D128 struct returned by open command')
-                print('\tpulsewidth - integer value between 50 and 2000')
-
-        elif command.lower() == 'dwell':
-            if len(args) == 2:
-                self.d128 = args[0]
-                inter_pulse = args[1]
-                if 1 <= inter_pulse <= 990 :
-                    self.d128['dwell'] = inter_pulse 
-                    success = True
-                else:
-                    print(f'Interpulse delay out or range')
-            else:
-                print('Unexpected number of arguments for dwell command')
-                print('\td128 - D128 struct returned by open command')
-                print('\tInterpulse delay - integer value between 1 and 990')
-
-        elif command.lower() == 'recovery':
-            if len(args) == 2:
-                self.d128 = args[0]
-                rec_percentage = args[1]
-                if 10 <= rec_percentage <= 100 :
-                    self.d128['recovery'] = rec_percentage 
-                    success = True
-                else:
-                    print(f'recovery purcentage out or range [10%-100%]')
-            else:
-                print('Unexpected number of arguments for recovery command')
-                print('\td128 - D128 struct returned by open command')
-                print('\trecovery - integer value between 10 and 100')
-
-        return success, self.d128
-
-    def Trigger(self):
+    
+    def GetState(self):
+        '''
+        Returns dictionary with state of the device
+        '''
         if hasattr(self, 'lib'):
-            self.lib.DGD128_Trigger()
-        else:
-            print('D128 Proxy Library not loaded. Open command must be called first.')
-
-    def Set(self, d128):
-        if hasattr(self, 'lib'):
-            print(d128) # to be deleted
-            self.lib.DGD128_Set(
-                d128['mode'], d128['polarity'], d128['source'], 
-                d128['demand'], d128['pulsewidth'], d128['dwell'], 
-                d128['recovery'], d128['enabled']
-            )
-        else:
-            print('D128 Proxy Library not loaded. Open command must be called first.')
-
-    def GetState(self, d128):
-        if hasattr(self, 'lib'):
-            # Assuming these functions take ctypes pointers to receive values
-            mode = ctypes.c_int()
-            pol = ctypes.c_int()
-            source = ctypes.c_int()
-            demand = ctypes.c_int() 
-            pw = ctypes.c_int()
-            dwell = ctypes.c_int()
-            recovery = ctypes.c_int()
-            enabled = ctypes.c_int()
-
-            self.lib.DGD128_Get(ctypes.byref(mode), ctypes.byref(pol), 
-                                ctypes.byref(source), ctypes.byref(demand), 
-                                ctypes.byref(pw), ctypes.byref(dwell), 
-                                ctypes.byref(recovery), ctypes.byref(enabled))
-
+            self._Read_CurrentState()
             return {
-                'mode': mode.value,
-                'polarity': pol.value,
-                'source': source.value,
-                'demand': demand.value,
-                'pulsewidth': pw.value,
-                'dwell': dwell.value,
-                'recovery': recovery.value,
-                'enabled': enabled.value
+                'mode': self.CurrentState.State.D128_State.CONTROL.MODE,
+                'polarity': self.CurrentState.State.D128_State.CONTROL.POLARITY,
+                'source': self.CurrentState.State.D128_State.CONTROL.SOURCE,
+                'demand': self.CurrentState.State.D128_State.DEMAND,
+                'pulsewidth': self.CurrentState.State.D128_State.WIDTH,
+                'dwell': self.CurrentState.State.D128_State.DWELL,
+                'recovery': self.CurrentState.State.D128_State.RECOVERY,
+                'enabled': self.CurrentState.State.D128_State.CONTROL.ENABLE
             }
         else:
-            print('D128 Proxy Library not loaded. Open command must be called first.')
-            return d128
+            print('DS8R Library not loaded. Open command must be called first.')
+            return {}
 
+    def _Read_CurrentState(self):
+        '''
+        Updates the state of the device stored in self.CurrentState variable. 
+        This function is used internally and is not meant for the user
+        '''
+        if self.retError in ERROR_SUCCESS and self.retAPIError.value in ERROR_SUCCESS:
+            self.retError = self.lib.DGD128_Update(self.apiRef, byref(self.retAPIError), None, 0, byref(self.CurrentState), byref(self.cbState), None, None)
+        else:
+            print('ERROR! couldn''t update the D188. retError = ', self.retError, ' and retAPIError = ', self.retAPIError.value)
+
+    def Mode(self, mode_str):
+        if hasattr(self, 'lib'):
+            if mode_str in self.DS8RMode:
+                self._Read_CurrentState()
+                self.NewState = self.CurrentState
+                self.NewState.State.D128_State.CONTROL.MODE = self.DS8RMode[mode_str]
+                self.retError = self.lib.DGD128_Update(self.apiRef, byref(self.retAPIError), byref(self.NewState), self.cbState, byref(self.CurrentState), byref(self.cbState), None, None)
+            else:
+                print(f'Unknown mode type {mode_str}')
+        else:
+            print('DS8R Library not loaded. Open command must be called first.')
+
+    def Polarity(self, pol_str):
+        '''
+        Set the pulse polarity.
+        Args:
+            pol_str (string): from self.DS8RPol typedef
+        '''
+        if hasattr(self, 'lib'):
+            if pol_str in self.DS8RPol:
+                self._Read_CurrentState()
+                self.NewState = self.CurrentState
+                self.NewState.State.D128_State.CONTROL.POLARITY = self.DS8RPol[pol_str]
+                self.retError = self.lib.DGD128_Update(self.apiRef, byref(self.retAPIError), byref(self.NewState), self.cbState, byref(self.CurrentState), byref(self.cbState), None, None)
+            else:
+                print(f'Unknown mode type {pol_str}')
+        else:
+            print('DS8R Library not loaded. Open command must be called first.')
+
+    def Source(self, src_str):
+        '''
+        Set the source for the stimulus demand; USB or analog input.
+        Args:
+            src_str (string): from self.DS8RSrc typedef
+        '''
+        if hasattr(self, 'lib'):
+            if src_str in self.DS8RSrc:
+                self._Read_CurrentState()
+                self.NewState = self.CurrentState
+                self.NewState.State.D128_State.CONTROL.SOURCE = self.DS8RSrc[src_str]
+                self.retError = self.lib.DGD128_Update(self.apiRef, byref(self.retAPIError), byref(self.NewState), self.cbState, byref(self.CurrentState), byref(self.cbState), None, None)
+            else:
+                print(f'Unknown mode type {src_str}')
+        else:
+            print('DS8R Library not loaded. Open command must be called first.')
+
+    def Demand(self, value):
+        '''
+        Set amplitude
+        Args:
+            value (float): acceptable amplitude in [0-1000] mA with one decimal precision
+        '''
+        if hasattr(self, 'lib'):
+            if 0 <= value <= 1000:
+                self._Read_CurrentState()
+                self.NewState = self.CurrentState
+                self.NewState.State.D128_State.DEMAND = int(value * 10) # function takes (mA * 10)
+                self.retError = self.lib.DGD128_Update(self.apiRef, byref(self.retAPIError), byref(self.NewState), self.cbState, byref(self.CurrentState), byref(self.cbState), None, None)
+            else:
+                print(f'Invalid amplitude value!')
+        else:
+            print('DS8R Library not loaded. Open command must be called first.')
+
+    def Pulsewidth(self, value):
+        '''
+        Set pulsewidth. width of the first square in case of bi-phasic
+        Args:
+            value (int): acceptable pulsewidth in [50-2000] us 
+        '''
+        if hasattr(self, 'lib'):
+            if 50 <= value <= 2000:
+                self._Read_CurrentState()
+                self.NewState = self.CurrentState
+                self.NewState.State.D128_State.WIDTH = int(value)
+                self.retError = self.lib.DGD128_Update(self.apiRef, byref(self.retAPIError), byref(self.NewState), self.cbState, byref(self.CurrentState), byref(self.cbState), None, None)
+            else:
+                print(f'Invalid pulsewidth value!')
+        else:
+            print('DS8R Library not loaded. Open command must be called first.')
+
+    def Dwell(self, value):
+        '''
+        Set inter-pulse width. Controls the period between the end of the stimulus pulse and the start of the recovery pulse when BI-PHASIC mode is enabled.
+        Args:
+            value (int): acceptable interpulse width in [1-990] us 
+        '''
+        if hasattr(self, 'lib'):
+            if 1 <= value <= 990:
+                self._Read_CurrentState()
+                self.NewState = self.CurrentState
+                self.NewState.State.D128_State.DWELL = int(value)
+                self.retError = self.lib.DGD128_Update(self.apiRef, byref(self.retAPIError), byref(self.NewState), self.cbState, byref(self.CurrentState), byref(self.cbState), None, None)
+            else:
+                print(f'Invalid interpulse value!')
+        else:
+            print('DS8R Library not loaded. Open command must be called first.')
+
+    def Recovery(self, value):
+        '''
+        Controls the recovery pulse duration when the BI-PHASIC mode is selected. The value represents the percentage 
+        Amplitude the recovery pulse will have. The recovery pulse duration is automatically adjusted to ensure the 
+        pulse energy is the same as the stimulus pulse.
+        Args:
+            value (int): acceptable recovery phase value in [10-100] %
+        '''
+        if hasattr(self, 'lib'):
+            if 10 <= value <= 100:
+                self._Read_CurrentState()
+                self.NewState = self.CurrentState
+                self.NewState.State.D128_State.RECOVERY = int(value)
+                self.retError = self.lib.DGD128_Update(self.apiRef, byref(self.retAPIError), byref(self.NewState), self.cbState, byref(self.CurrentState), byref(self.cbState), None, None)
+            else:
+                print(f'Invalid recovery value!')
+        else:
+            print('DS8R Library not loaded. Open command must be called first.')
+
+    def Enable(self, enabled):
+        '''
+        Control of output enable state.
+        Args:
+            enabled (bool)
+        '''
+        if hasattr(self, 'lib'):
+            if isinstance(enabled, bool):
+                self._Read_CurrentState()
+                self.NewState = self.CurrentState
+                self.NewState.State.D128_State.CONTROL.ENABLE = self.DS8REnabled[enabled]
+                self.retError = self.lib.DGD128_Update(self.apiRef, byref(self.retAPIError), byref(self.NewState), self.cbState, byref(self.CurrentState), byref(self.cbState), None, None)
+            else:
+                print(f'Unknown mode type {enabled}')
+        else:
+            print('DS8R Library not loaded. Open command must be called first.')
+        
+    def Trigger(self):
+        '''
+        Triggers one time. TRIGGER is 0 in idle. Setting it to 1 triggers. After triggering it will be set back to zero automatically by the device 
+        REMARK: Max trigger at 10Hz using USB, otherwise can have bugs
+        '''
+        if hasattr(self, 'lib'):
+            self._Read_CurrentState()
+            self.NewState = self.CurrentState
+            self.NewState.State.D128_State.CONTROL.TRIGGER = 1
+            self.retError = self.lib.DGD128_Update(self.apiRef, byref(self.retAPIError), byref(self.NewState), self.cbState, byref(self.CurrentState), byref(self.cbState), None, None)
+        else:
+            print('DS8R Library not loaded. Open command must be called first.')
+
+    def Close(self):
+        '''
+        Closes and disconnects from the underlying device management services. Frees resources and invalidates the 
+        reference. Continuing to use the reference will result in returned errors.
+        Once called, if there are no remaining clients connected to the underlying device services, they will automatically 
+        close, freeing all communications resources used.
+        '''
+        if hasattr(self, 'lib'):
+            if self.apiRef.value:
+                #self.SetMode('OFF')
+                self.retError = self.lib.DGD128_Close(byref(self.apiRef), byref(self.retAPIError), None, None)
+                print('closed successfully.')
+            else:
+                print('DS8R Didin''t close! retError = ', self.retError, ' apiRef = ', self.apiRef.value)
+        else:
+            print('DS8R Library not loaded. Open command must be called first.')
 
 
 if __name__ == '__main__':
     # Example usage
     controller = DS8RController()
-    success, d128 = controller.D128ctrl('open')
-        
-    if success:
-        print("Device opened successfully.")
-    else:
-        print("Failed to open the device.")
 
-    controller.initialize()
+    controller.Load()
+    controller.Initialize() 
 
-        # Set paramters
-    success, d128 = controller.D128ctrl('mode', d128, 'Bi-phasic')
-    success, d128 = controller.D128ctrl('polarity', d128, 'Positive')
-    success, d128 = controller.D128ctrl('source', d128, 'Internal')
-    success, d128 = controller.D128ctrl('demand', d128, 3)
-    success, d128 = controller.D128ctrl('pulsewidth', d128, 500)
-    success, d128 = controller.D128ctrl('dwell', d128, 500)
-    success, d128 = controller.D128ctrl('recovery', d128, 60)
+    state = controller.GetState()
+    print(state)
 
-    # Enable the device
-    success, d128 = controller.D128ctrl('enable', d128, True)
-
-    # Upload all parameters to the device
-    success = controller.D128ctrl('upload', d128)
-
-    # Download status from device
-    success, d128 = controller.D128ctrl('status', d128)
+    controller.Mode('Bi-phasic')
+    controller.Polarity('Negative')
+    controller.Source('Internal')
+    controller.Demand(3.5)
+    controller.Pulsewidth(60)
+    controller.Dwell(10)
+    controller.Recovery(90)
+    controller.Enable(True)
+    
+    state = controller.GetState()
+    print(state)
+    
+    controller.Trigger()
 
     controller.Close()
-    print('closed')
+
+    controller.Unload()
+    print('Done')

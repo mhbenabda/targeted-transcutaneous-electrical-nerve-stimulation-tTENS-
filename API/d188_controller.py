@@ -198,7 +198,7 @@ class D188Controller:
             else:
                 print('Cannot set channel. You need to set USB mode first. ')
         else:
-            print('D188 Proxy Library not loaded. Open command must be called first.')
+            print('D188 Library not loaded. Open command must be called first.')
 
     def SetMode(self, mode):
         '''
@@ -260,7 +260,7 @@ class D188Controller:
             else:
                 print('Didin''t close! retError = ', self.retError, ' apiRef = ', self.apiRef.value)
         else:
-            print('D188 Proxy Library not loaded. Open command must be called first.')
+            print('D188 Library not loaded. Open command must be called first.')
 
 
 if __name__ == '__main__':
