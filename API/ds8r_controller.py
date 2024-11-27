@@ -95,7 +95,6 @@ class DS8RController:
         self.apiRef = c_int()          # Session reference
         self.retError = c_int()         # Initialization error
         self.retAPIError = c_int()      # General API error code
-        #self.current_state = D188DEVICESTATE_T()  # Device state structure
         self.cbState = c_int()
         self.CurrentState = D128()      # Used to store current state retrived from DLL
         self.NewState = D128()          # Used to set new state through DLL
@@ -141,12 +140,12 @@ class DS8RController:
         '''
         Unloads DLL library used for controlling the DS8R stimulator
         '''
-        if hasattr(self, 'lib'):
-            ctypes.windll.kernel32.FreeLibrary(self.lib._handle)
+        if hasattr(self, 'lib') and self.lib is not None:
             del self.lib
-            print('dll deleted')
+            self.lib = None
+            print('DS8R DLL unloaded successfully.')
         else:
-            print('D128 DLL not loaded. Cannot initilize.')
+            print('DLL not loaded. Nothing to unload.')
 
     def Initialize(self):
         '''
@@ -158,7 +157,7 @@ class DS8RController:
             # The first call is to simply fetch the size of the CurrentState structre which neesd to be allocated.
             if self.retError in ERROR_SUCCESS and self.retAPIError.value in ERROR_SUCCESS:
                 self.retError = self.lib.DGD128_Update(self.apiRef, byref(self.retAPIError), None, 0, None, byref(self.cbState), None, None)
-                print('initilization successful ;)')
+                print('DS8R initilization successful ;)')
             else:
                 print('ERROR during initialization.')
                 print('Didin''t initialize! retError = ', self.retError, ' retAPIError = ', self.retAPIError.value)
@@ -193,7 +192,7 @@ class DS8RController:
         if self.retError in ERROR_SUCCESS and self.retAPIError.value in ERROR_SUCCESS:
             self.retError = self.lib.DGD128_Update(self.apiRef, byref(self.retAPIError), None, 0, byref(self.CurrentState), byref(self.cbState), None, None)
         else:
-            print('ERROR! couldn''t update the D188. retError = ', self.retError, ' and retAPIError = ', self.retAPIError.value)
+            print('ERROR! couldn''t update the DS8R. retError = ', self.retError, ' and retAPIError = ', self.retAPIError.value)
 
     def Mode(self, mode_str):
         if hasattr(self, 'lib'):
@@ -327,7 +326,71 @@ class DS8RController:
                 print(f'Unknown mode type {enabled}')
         else:
             print('DS8R Library not loaded. Open command must be called first.')
-        
+    
+    def Cmd(self, command, *args):
+        '''
+        This function just provides a different format for calling the previous functions:
+        Mode, Polarity, Source, Demand, Pulsewidth, Dwell, Recovery
+        Args:
+            command (string): different commands
+            *args: different possible values depending on the command
+        '''
+        if command.lower() == 'mode':
+            if len(args) == 1:
+                mode_str = args[0]
+                self.Mode(mode_str)
+            else:
+                print('Unexpected number of arguments for mode command')
+                print('\tmode - ' + ', '.join(self.DS8RMode.keys()))
+
+        elif command.lower() == 'polarity':
+            if len(args) == 1:
+                pol_str = args[0]
+                self.Polarity(pol_str)
+            else:
+                print('Unexpected number of arguments for polarity command')
+                print('\tpolarity - ' + ', '.join(self.DS8RPol.keys()))
+
+        elif command.lower() == 'source':
+            if len(args) == 1:
+                src_str = args[0]
+                self.Source(src_str)
+            else:
+                print('Unexpected number of arguments for source command')
+                print('\tsource - ' + ', '.join(self.DS8RSrc.keys()))
+
+        elif command.lower() == 'demand':
+            if len(args) == 1:
+                pulse_amp = args[0]
+                self.Demand(pulse_amp)
+            else:
+                print('Unexpected number of arguments for demand command')
+                print('\tdemand - float value between 0 and 1000. max one decimal point') 
+
+        elif command.lower() == 'pulsewidth':
+            if len(args) == 1:
+                pulse_width = args[0]
+                self.Pulsewidth(pulse_width)
+            else:
+                print('Unexpected number of arguments for pulsewidth command')
+                print('\tpulsewidth - integer value between 50 and 2000')
+
+        elif command.lower() == 'dwell':
+            if len(args) == 1:
+                inter_pulse = args[0]
+                self.Dwell(inter_pulse)
+            else:
+                print('Unexpected number of arguments for dwell command')
+                print('\tInterpulse delay - integer value between 1 and 990')
+
+        elif command.lower() == 'recovery':
+            if len(args) == 1:
+                rec_percentage = args[0]
+                self.Recovery(rec_percentage)
+            else:
+                print('Unexpected number of arguments for recovery command')
+                print('\trecovery - integer value between 10 and 100')
+
     def Trigger(self):
         '''
         Triggers one time. TRIGGER is 0 in idle. Setting it to 1 triggers. After triggering it will be set back to zero automatically by the device 

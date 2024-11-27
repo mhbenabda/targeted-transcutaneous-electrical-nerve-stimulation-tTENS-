@@ -3,6 +3,7 @@
 # API for D188 Digitimer Electrode Selector
 import os
 from ctypes import Structure, c_ubyte, c_ushort, c_int, POINTER, WINFUNCTYPE, c_void_p, byref, WinDLL #, sizeof, cast
+import time
 
 ERROR_SUCCESS = {0, 1641, 3010, 3011}
 
@@ -80,8 +81,8 @@ class D188Controller:
         self.NAME_DLL = 'DGD188API.dll'
 
         self.apiRef = c_int(0)          # Session reference
-        self.retError = c_int()         # Initialization error
-        self.retAPIError = c_int()      # General API error code
+        self.retError = c_int(0)         # Initialization error
+        self.retAPIError = c_int(0)      # General API error code
         #self.current_state = D188DEVICESTATE_T()  # Device state structure
         self.cbState = c_int()
         self.CurrentState = D188()      # Used to store current state retrived from DLL
@@ -110,20 +111,17 @@ class D188Controller:
             'OFF': c_ubyte(0),          # 0 = Channel active indicators OFF
             'ON': c_ubyte(1)           # !0 = Channel active indicators ON
         }
-
+    '''
     def Open(self):
-        '''
-        Loads dll library and initilizes the device. Necessary before starting to use the device.
-        '''
         success = False
         success = self.Load() # Load dll
         if success:
             try:
-                self.initialize()
+                self.Initialize()
             except AttributeError:
-                print("Failed to initialize D188!")
+                print("Failed to Initialize D188!")
                 exit(1)
-
+    '''
     def Load(self):
         '''
         Loads dll library
@@ -131,22 +129,22 @@ class D188Controller:
         full_dll = os.path.join(self.PATH_DLL, self.NAME_DLL)
         try:
             self.lib = WinDLL(full_dll) 
-            print('load successful :)')
-            return True
+            print('D188 load successful :)')
         except OSError:
             print(f"{full_dll} was not found!")
-            return False
         
-    def initialize(self):
+    def Initialize(self):
         '''
         Initializes the device and the current state of the device
         '''
         if hasattr(self, 'lib'):
             self.apiRef = c_int(0)
+            self.retAPIError = c_int(0)
             self.retError = self.lib.DGD188_Initialise(byref(self.apiRef), byref(self.retAPIError), None, None)
             # The first call is to simply fetch the size of the CurrentState structre which neesd to be allocated.
             if self.retError in ERROR_SUCCESS and self.retAPIError.value in ERROR_SUCCESS:
                 self.retError = self.lib.DGD188_Update(self.apiRef, byref(self.retAPIError), None, 0, None, byref(self.cbState), None, None)
+                print('D188 init successfully')
             else:
                 print('ERROR during initialization.')
         else:
@@ -157,7 +155,7 @@ class D188Controller:
         Returns dictionary with state of the device
         '''
         if hasattr(self, 'lib'):
-            self.update_CurrentState()
+            #self.update_CurrentState()
             self.state = {
                 'D188_Mode': self.CurrentState.State.D188_State.D188_Mode,
                 'D188_Select': self.CurrentState.State.D188_State.D188_Select,
@@ -190,13 +188,17 @@ class D188Controller:
             channel (self.D1288Select): 0,1,2,...,8
         '''
         if hasattr(self, 'lib'):
-            self.update_CurrentState()
-            if self.CurrentState.State.D188_State.D188_Mode == self.D188Mode['USB'].value:
-                self.NewState = self.CurrentState
-                self.NewState.State.D188_State.D188_Select = self.D188Select[channel]
-                self.retError = self.lib.DGD188_Update(self.apiRef, byref(self.retAPIError), byref(self.NewState), self.cbState, byref(self.CurrentState), byref(self.cbState), None, None)
+            if channel in self.D188Select:
+                self.update_CurrentState()
+                if self.CurrentState.State.D188_State.D188_Mode == self.D188Mode['USB'].value:
+                    self.NewState = self.CurrentState
+                    self.NewState.State.D188_State.D188_Select = self.D188Select[channel]
+                    self.retError = self.lib.DGD188_Update(self.apiRef, byref(self.retAPIError), byref(self.NewState), self.cbState, byref(self.CurrentState), byref(self.cbState), None, None)
+                    print('D188 channel update successfully')
+                else:
+                    print('Cannot set channel. You need to set USB mode first. ')
             else:
-                print('Cannot set channel. You need to set USB mode first. ')
+                print('Channel invalid')
         else:
             print('D188 Library not loaded. Open command must be called first.')
 
@@ -255,23 +257,43 @@ class D188Controller:
         '''
         if hasattr(self, 'lib'):
             if self.apiRef.value:
-                self.SetMode('OFF')
+                #self.SetMode('OFF')
                 self.retError = self.lib.DGD188_Close(byref(self.apiRef), byref(self.retAPIError), None, None)
+                print('D188 closed successfully')
             else:
                 print('Didin''t close! retError = ', self.retError, ' apiRef = ', self.apiRef.value)
         else:
             print('D188 Library not loaded. Open command must be called first.')
 
 
+    def Unload(self):
+        '''
+        Unloads the DLL and frees resources.
+        '''
+        if hasattr(self, 'lib') and self.lib is not None:
+            del self.lib
+            self.lib = None
+            print('D188 DLL unloaded successfully.')
+        else:
+            print('DLL not loaded. Nothing to unload.')
+
 if __name__ == '__main__':
+    print('Example script:')
     # Example usage
     Selector = D188Controller()
-    Selector.Open()
-    Selector.GetState()
+    Selector.Load()
+    Selector.Initialize()
+    time.sleep(0.1)
     Selector.SetMode('USB')
+    time.sleep(0.1)
     Selector.SetIndicator('ON')
-    Selector.SetDelay(1)
-    Selector.SetChannel(7)
+    time.sleep(0.1)
+    Selector.SetDelay(1) # can go as short as 0.1ms, but now 1 for safety
+    time.sleep(0.1)
+    Selector.SetChannel(8)
+    time.sleep(0.1)
     Selector.GetState()
-    Selector.Close()
-
+    time.sleep(0.1)
+    Selector.Close
+    time.sleep(0.1)
+    Selector.Unload()
