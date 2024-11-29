@@ -8,7 +8,7 @@ from API.d128_controller import D128Controller
 import serial
 import time
 from API.ds8r_controller import DS8RController
-from API.d188_controller import D188Controller
+from API.d188_controller_v2 import D188Controller
 
 stimulator = DS8RController()
 selector = D188Controller()
@@ -75,21 +75,22 @@ class Mapping_view(QMainWindow):
     def init_DS8RController(self):
         stimulator.Load()
         stimulator.Initialize()
+        time.sleep(0.1)
 
         stimulator.Enable(False)
+        time.sleep(0.1)
 
         stimulator.Close()  
-        time.sleep(0.25)
+        time.sleep(0.1)
 
     def init_selector(self):
-        selector.Load()
-        selector.initialize()
+        #selector.Load()
+        selector.Initialise()
         selector.SetMode('USB')
         selector.SetIndicator('ON')
         selector.SetDelay(1) # 1ms (can go up to 0.1ms but don't need to here)
         selector.SetChannel(1)
         selector.Close()
-        time.sleep(0.25)
 
     def init_uC_comm(self):
         '''
@@ -116,6 +117,7 @@ class Mapping_view(QMainWindow):
     def update_DS8R(self):
 
         stimulator.Initialize()
+        time.sleep(0.1)
 
         stimulator.Cmd('mode', self.CB_M.currentText())
         stimulator.Cmd('polarity', self.CB_POL.currentText())
@@ -124,25 +126,28 @@ class Mapping_view(QMainWindow):
         stimulator.Cmd('pulsewidth', self.SB_PW.value())
         stimulator.Cmd('dwell', self.SB_IP.value())
         stimulator.Cmd('recovery', self.SB_RP.value())
+        time.sleep(0.1)
 
         stimulator.Close()
+        time.sleep(0.1)
 
     def on_channel_changed(self, channel_str):
         channel = int(channel_str)
-        time.sleep(0.25)
-        selector.initialize()
+        selector.Initialise()
         selector.SetChannel(channel)
         selector.Close()
-        time.sleep(0.1)
+        time.sleep(0.2)
 
     def start_stop(self):
         freq = self.SB_F.value()
         if self.trigger == False:
             # Enable the device
             stimulator.Initialize()
+            time.sleep(0.1)
             stimulator.Enable(True)
-            time.sleep(0.25)
-            selector.Close()
+            time.sleep(0.1)
+            selector.Close()                                ### is this error ??????????????????????????????
+            time.sleep(0.1)
             command = 'start:' + str(freq) + '\n'
             uC.write(command.encode())
             self.trigger = True
@@ -151,9 +156,11 @@ class Mapping_view(QMainWindow):
             uC.write(command.encode())
             # disable the device
             stimulator.Initialize()
+            time.sleep(0.1)
             stimulator.Enable(False)
-            time.sleep(0.25)
-            selector.Close()
+            time.sleep(0.1)
+            selector.Close()                                 ### is this error ??????????????????????????????
+            time.sleep(0.1)
             self.trigger = False
 
     def close_uC_comm(self):
@@ -168,8 +175,12 @@ class Mapping_view(QMainWindow):
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
         stimulator.Close()
+        time.sleep(0.1)
+        stimulator.Unload()
         selector.Close()
-    
+        time.sleep(0.1)
+        #selector.Unload()
+
     def closeEvent(self, event):
         self.close_uC_comm()  # Call your function before closing
         event.accept()  # Accept the close event

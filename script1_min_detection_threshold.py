@@ -502,12 +502,12 @@ if __name__ == '__main__':
         'numTriggers': 0,
         'numRepetition':None,
         'channels': [1,2,3], # set connected channels
-        'nbInversionPoints': 2
+        'nbInversionPoints': 5
     } 
     variable_param = {
         'variable': 'demand',
         'start': 6.0,
-        'stop': 15.0,
+        'stop': 20.0,
         'step': 0.5
     }
     # Start app

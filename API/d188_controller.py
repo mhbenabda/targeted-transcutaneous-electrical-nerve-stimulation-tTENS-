@@ -31,7 +31,7 @@ class DEVHDR(Structure):
 class D188(Structure):
     _fields_ = [
         ("Header", DEVHDR),
-        ("State", D188DEVICESTATE_T)  # Array size can be dynamically managed in Python
+        ("State", D188DEVICESTATE_T)
     ]
 
 # Define pointer types for convenience
@@ -177,7 +177,8 @@ class D188Controller:
         Updates the state of the device stored in self.CurrentState variable
         '''
         if self.retError in ERROR_SUCCESS and self.retAPIError.value in ERROR_SUCCESS:
-            self.retError = self.lib.DGD188_Update(self.apiRef, byref(self.retAPIError), None, 0, byref(self.CurrentState), byref(self.cbState), None, None)
+            self.retError = self.lib.DGD188_Update(self.apiRef, byref(self.retAPIError), None, 0, byref(self.CurrentState),
+                                                    byref(self.cbState), None, None)
         else:
             print('ERROR! couldn''t update the D188. retError = ', self.retError, ' and retAPIError = ', self.retAPIError.value)
 
@@ -193,7 +194,8 @@ class D188Controller:
                 if self.CurrentState.State.D188_State.D188_Mode == self.D188Mode['USB'].value:
                     self.NewState = self.CurrentState
                     self.NewState.State.D188_State.D188_Select = self.D188Select[channel]
-                    self.retError = self.lib.DGD188_Update(self.apiRef, byref(self.retAPIError), byref(self.NewState), self.cbState, byref(self.CurrentState), byref(self.cbState), None, None)
+                    self.retError = self.lib.DGD188_Update(self.apiRef, byref(self.retAPIError), byref(self.NewState), self.cbState,
+                                                            byref(self.CurrentState), byref(self.cbState), None, None)
                     print('D188 channel update successfully')
                 else:
                     print('Cannot set channel. You need to set USB mode first. ')
