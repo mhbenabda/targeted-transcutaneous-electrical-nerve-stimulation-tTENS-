@@ -1,12 +1,13 @@
 # Author: Mohamed Habib Ben Abda
 # Date: Fall semester 2024
 # API for D188 Digitimer Electrode Selector
-import os
-from ctypes import Structure, c_ubyte, c_ushort, c_int, POINTER, WINFUNCTYPE, c_void_p, byref, WinDLL #, sizeof, cast
-import time
+from ctypes import Structure, c_ubyte, c_ushort, c_int, WINFUNCTYPE, c_void_p, byref, WinDLL #, sizeof, cast
+from sys import getsizeof
 
-ERROR_SUCCESS = {0, 1641, 3010, 3011}
+hDGD188Api = WinDLL("DGD188API.DLL")
 
+# ------------------------------------------------------------------------------
+# Declare D188 classes 
 class D188STATE_T(Structure):
     _fields_ = [
         ("D188_Mode", c_ubyte),       # Mode: 0 = OFF, 1 = USB, 2 = TTL (1-8), 3 = TTL (4-8)
@@ -34,59 +35,54 @@ class D188(Structure):
         ("State", D188DEVICESTATE_T)
     ]
 
-# Define pointer types for convenience
-PD188 = POINTER(D188)
+# ------------------------------------------------------------------------------
+# Declare DLL API function and associated parameters
+protoDGD188_Initialise = WINFUNCTYPE (
+    c_int,       #Function result
+    c_void_p,    #Instance Reference
+    c_void_p,    #Initialise Result
+    c_int,       #Callback pointer (not used MUST be 0)
+    c_int        #Callback parameters (not used MUST be 0)
+    )
 
-# Define callback functions prototypes
-DGClientInitialiseProc = WINFUNCTYPE(None, c_int, c_void_p)
-DGClientUpdateProc = WINFUNCTYPE(None, c_int, POINTER(D188), c_void_p)
-DGClientCloseProc = WINFUNCTYPE(None, c_int, c_void_p)
+protoDGD188_Update = WINFUNCTYPE (
+    c_int,       #Function result
+    c_int,       #Instance Reference
+    c_void_p,    #Update Result
+    c_void_p,    #NewState
+    c_int,       #cbNewState
+    c_void_p,    #CurrentState
+    c_void_p,    #cbCurrentState
+    c_int,       #Callback pointer (not used MUST be 0)
+    c_int        #Callback parameters (not used MUST be 0)
+    )
 
-# Define DLL functions prototypes for the API
-DGD188_Initialise = WINFUNCTYPE(c_int, POINTER(c_int), POINTER(c_int), DGClientInitialiseProc, c_void_p)
-DGD188_Update = WINFUNCTYPE(c_int, c_int, POINTER(c_int), PD188, c_int, PD188, POINTER(c_int), DGClientUpdateProc, c_void_p)
-DGD188_Close = WINFUNCTYPE(c_int, POINTER(c_int), POINTER(c_int), DGClientCloseProc, c_void_p)
+protoDGD188_Close = WINFUNCTYPE (
+    c_int,       #Function result
+    c_void_p,    #Instance Reference
+    c_void_p,    #Close Result
+    c_int,       #Callback pointer (not used MUST be 0)
+    c_int        #Callback parameters (not used MUST be 0)
+    )
 
 
+paramsDGD188_Initialise = (1,"Reference",0),(1,"InitResult",0),(1,"CallbackProc",0),(1,"CallbackParam",0),
+paramsDGD188_Update =  (1,"Reference",0),(1,"updateResult",0),(1,"NewState",0),(1,"cbNewState",0),(1,"CurrentState",0),(1,"cbCurrentState",0),(1,"CallbackProc",0),(1,"CallbackParam",0),
+paramsDGD188_Close =  (1,"Reference",0),(1,"CloseResult",0),(1,"CallbackProc",0),(1,"CallbackParam",0),
+
+
+DGD188_Initialise = protoDGD188_Initialise(("DGD188_Initialise",hDGD188Api), paramsDGD188_Initialise)
+DGD188_Update = protoDGD188_Update(("DGD188_Update",hDGD188Api), paramsDGD188_Update)
+DGD188_Close = protoDGD188_Close(("DGD188_Close",hDGD188Api), paramsDGD188_Close)
+
+# ------------------------------------------------------------------------------
+# Declare D188 class
 class D188Controller:
-    '''
-    D188_Mode
-        0 = OFF
-        1 = Controlled by commands from USB (PC API)
-        2 = 1 to 8 control from rear panel connector (TTL)
-        3 = 4 to 8 control from rear panel connector (TTL)
-
-    D188_Select
-        0 = All channels off
-        1 = Channel 1 selected
-        2 = Channel 2 selected
-        4 = Channel 3 selected
-        8 = Channel 4 selected
-        16 = Channel 5 selected
-        32 = Channel 6 selected
-        64 = Channel 7 selected
-        128 = Channel 8 selected
-
-        Only the first BIT set will enable a channel, subsequent set bits are ignored
-
-    D188_Indicator
-        0 = Channel active indicators OFF
-        !0 = Channel active indicators ON
-
-    D188_Delay
-        n = number of 100us to delay between detecting a change on the rear panel socket and applying the change to the selected channels.
-    '''
     def __init__(self):
-        self.PATH_DLL = ''
-        self.NAME_DLL = 'DGD188API.dll'
-
-        self.apiRef = c_int(0)          # Session reference
-        self.retError = c_int(0)         # Initialization error
-        self.retAPIError = c_int(0)      # General API error code
-        #self.current_state = D188DEVICESTATE_T()  # Device state structure
-        self.cbState = c_int()
-        self.CurrentState = D188()      # Used to store current state retrived from DLL
-        self.NewState = D188()          # Used to set new state through DLL
+        self.apiRef = c_int(0)          
+        self.retError = c_int(0)         
+        self.retAPIError = c_int(0)   
+        self.closeResult = c_int(0)   
 
         self.D188Mode = {
             'OFF': c_ubyte(0),
@@ -111,76 +107,46 @@ class D188Controller:
             'OFF': c_ubyte(0),          # 0 = Channel active indicators OFF
             'ON': c_ubyte(1)           # !0 = Channel active indicators ON
         }
-    '''
-    def Open(self):
-        success = False
-        success = self.Load() # Load dll
-        if success:
-            try:
-                self.Initialize()
-            except AttributeError:
-                print("Failed to Initialize D188!")
-                exit(1)
-    '''
-    def Load(self):
-        '''
-        Loads dll library
-        '''
-        full_dll = os.path.join(self.PATH_DLL, self.NAME_DLL)
-        try:
-            self.lib = WinDLL(full_dll) 
-            print('D188 load successful :)')
-        except OSError:
-            print(f"{full_dll} was not found!")
-        
-    def Initialize(self):
-        '''
-        Initializes the device and the current state of the device
-        '''
-        if hasattr(self, 'lib'):
-            self.apiRef = c_int(0)
-            self.retAPIError = c_int(0)
-            self.retError = self.lib.DGD188_Initialise(byref(self.apiRef), byref(self.retAPIError), None, None)
-            # The first call is to simply fetch the size of the CurrentState structre which neesd to be allocated.
-            if self.retError in ERROR_SUCCESS and self.retAPIError.value in ERROR_SUCCESS:
-                self.retError = self.lib.DGD188_Update(self.apiRef, byref(self.retAPIError), None, 0, None, byref(self.cbState), None, None)
-                print('D188 init successfully')
-            else:
-                print('ERROR during initialization.')
-        else:
-            print('D188 Proxy Library not loaded. Cannot initilize.')
 
-    def GetState(self):
+    def Initialise(self):
         '''
-        Returns dictionary with state of the device
+        Must be the first function called to initialise the D188 stack and return an
+        instance reference.
+        '''        
+        self.apiRef = c_int(0)
+        self.retAPIError = c_int(0)
+        return DGD188_Initialise(byref(self.apiRef), byref(self.retAPIError), 0,0)
+    
+    def Close(self):
         '''
-        if hasattr(self, 'lib'):
-            #self.update_CurrentState()
-            self.state = {
-                'D188_Mode': self.CurrentState.State.D188_State.D188_Mode,
-                'D188_Select': self.CurrentState.State.D188_State.D188_Select,
-                'D188_Indicator': self.CurrentState.State.D188_State.D188_Indicator,
-                'D188_Delay': self.CurrentState.State.D188_State.D188_Delay,
-                'D188_DeviceID': self.CurrentState.State.D188_DeviceID,
-                'D188_VersionID': self.CurrentState.State.D188_VersionID,
-                'D188_Error': self.CurrentState.State.D188_Error,
-                'DeviceCount': self.CurrentState.Header.DeviceCount
-            }
-            print(self.state)
-            return self.state
-        else:
-            print('D188 Library not loaded. Open command must be called first.')
-            return {}
+        Close and free all resources associated with the instance reference (apiRef).
+        Called once D188 has been finished with. It is advisable to hold on to the
+        refernce until the end of the program
+        '''
+        self.closeResult = c_int(0)
+        DGD188_Close(byref(self.apiRef), byref(self.closeResult), 0,0)
 
-    def update_CurrentState(self):
+    def UpdateGet(self, STATE):
         '''
-        Updates the state of the device stored in self.CurrentState variable
+        Fetch the current state associated with the supplied instance reference.
+        '''         
+        self.retAPIError = c_int(0)  
+        _STATE = D188()
+        _cbSTATE = c_int(getsizeof(_STATE))
+        DGD188_Update(self.apiRef, byref(self.retAPIError), 0, 0, byref(_STATE), byref(_cbSTATE), 0,0)
+        STATE.Header = _STATE.Header
+        STATE.State = _STATE.State
+    
+    def UpdateSet(self, STATE):
         '''
-        if self.retError in ERROR_SUCCESS and self.retAPIError.value in ERROR_SUCCESS:
-            self.retError = self.lib.DGD188_Update(self.apiRef, byref(self.retAPIError), None, 0, byref(self.CurrentState),
-                                                    byref(self.cbState), None, None)
-        else:
-            print('ERROR! couldn''t update the D188. retError = ', self.retError, ' and retAPIError = ', self.retAPIError.value)
+        Takes an object of type D188 and updates the connected device to match the state
+        '''
+        self.retAPIError = c_int(0)  
+        _STATE = D188()
+        _cbSTATE = c_int(getsizeof(_STATE))
+        _STATE.Header = STATE.Header
+        _STATE.State = STATE.State
+        DGD188_Update(self.apiRef, byref(self.retAPIError), byref(_STATE), _cbSTATE, 0, 0, 0,0)
 
     def SetChannel(self, channel):
         '''
@@ -188,49 +154,41 @@ class D188Controller:
         Args:
             channel (self.D1288Select): 0,1,2,...,8
         '''
-        if hasattr(self, 'lib'):
-            if channel in self.D188Select:
-                self.update_CurrentState()
-                if self.CurrentState.State.D188_State.D188_Mode == self.D188Mode['USB'].value:
-                    self.NewState = self.CurrentState
-                    self.NewState.State.D188_State.D188_Select = self.D188Select[channel]
-                    self.retError = self.lib.DGD188_Update(self.apiRef, byref(self.retAPIError), byref(self.NewState), self.cbState,
-                                                            byref(self.CurrentState), byref(self.cbState), None, None)
-                    print('D188 channel update successfully')
-                else:
-                    print('Cannot set channel. You need to set USB mode first. ')
-            else:
-                print('Channel invalid')
+        if channel in self.D188Select:
+            STATE = D188()
+            self.UpdateGet(STATE)
+            STATE.State.D188_State.D188_Select = self.D188Select[channel]
+            self.UpdateSet(STATE)
         else:
-            print('D188 Library not loaded. Open command must be called first.')
-
+            print('ERROR! Channel argument invalid')
+    
     def SetMode(self, mode):
         '''
         Set which controll mode is used for the selector
         Args:
             mode (self.D1288Mode): 'OFF', 'USB', '8TTL' or '4TTL'
         '''
-        if hasattr(self, 'lib'):
-            self.update_CurrentState()
-            self.NewState = self.CurrentState
-            self.NewState.State.D188_State.D188_Mode = self.D188Mode[mode]
-            self.retError = self.lib.DGD188_Update(self.apiRef, byref(self.retAPIError), byref(self.NewState), self.cbState, byref(self.CurrentState), byref(self.cbState), None, None)
+        if mode in self.D188Mode:
+            STATE = D188()
+            self.UpdateGet(STATE)
+            STATE.State.D188_State.D188_Mode = self.D188Mode[mode]
+            self.UpdateSet(STATE)
         else:
-            print('D188 Proxy Library not loaded. Open command must be called first.')
+            print('ERROR! Mode argument invalid')
 
     def SetIndicator(self, indicator):
         '''
         Set if LED indicators are activated/disactivated
         Args:
-            indicator (self.D1288Indicator): 'ON' or 'OFF'
+            indicator (self.D188Indicator): 'ON' or 'OFF'
         '''
-        if hasattr(self, 'lib'):
-            self.update_CurrentState()
-            self.NewState = self.CurrentState
-            self.NewState.State.D188_State.D188_Indicator = self.D188Indicator[indicator]
-            self.retError = self.lib.DGD188_Update(self.apiRef, byref(self.retAPIError), byref(self.NewState), self.cbState, byref(self.CurrentState), byref(self.cbState), None, None)
+        if indicator in self.D188Indicator:
+            STATE = D188()
+            self.UpdateGet(STATE)
+            STATE.State.D188_State.D188_Indicator = self.D188Indicator[indicator]
+            self.UpdateSet(STATE)
         else:
-            print('D188 Proxy Library not loaded. Open command must be called first.')
+            print('ERROR! Indicator argument invalid')
 
     def SetDelay(self, delay):
         '''
@@ -240,62 +198,41 @@ class D188Controller:
         Args:
             delay (float): between 0.1-1000 milliseconds
         '''
-        if hasattr(self, 'lib'):
-            if 0.1 <= delay <= 1000:
-                self.update_CurrentState()
-                self.NewState = self.CurrentState
-                n = int(delay * 1000 / 100)   # convert to us and devide by 100us to get n 
-                c_n = c_ushort(n )   # devide by 100us to get n 
-                self.NewState.State.D188_State.D188_Delay = c_n
-                self.retError = self.lib.DGD188_Update(self.apiRef, byref(self.retAPIError), byref(self.NewState), self.cbState, byref(self.CurrentState), byref(self.cbState), None, None)
-            else:
-                print('ERROR! Delay out of range.')
+        if 0.1 <= delay <= 1000:
+            STATE = D188()
+            self.UpdateGet(STATE)
+            n = int(delay * 1000 / 100)     # convert to us and devide by 100us to get n 
+            c_n = c_ushort(n)              # devide by 100us to get n 
+            STATE.State.D188_State.D188_Delay = c_n
+            self.UpdateSet(STATE)
         else:
-            print('D188 Proxy Library not loaded. Open command must be called first.')
+            print('ERROR! Indicator argument invalid')
 
-    def Close(self):
+    def PrintState(self):
         '''
-        Close connection with device
+        Print the current content of the D188 STATE
         '''
-        if hasattr(self, 'lib'):
-            if self.apiRef.value:
-                #self.SetMode('OFF')
-                self.retError = self.lib.DGD188_Close(byref(self.apiRef), byref(self.retAPIError), None, None)
-                print('D188 closed successfully')
-            else:
-                print('Didin''t close! retError = ', self.retError, ' apiRef = ', self.apiRef.value)
-        else:
-            print('D188 Library not loaded. Open command must be called first.')
+        STATE = D188()
+        self.UpdateGet(STATE)
+        print(
+            {
+                'D188_Mode': STATE.State.D188_State.D188_Mode,
+                'D188_Select': STATE.State.D188_State.D188_Select,
+                'D188_Indicator': STATE.State.D188_State.D188_Indicator,
+                'D188_Delay': STATE.State.D188_State.D188_Delay,
+                'D188_DeviceID': STATE.State.D188_DeviceID,
+                'D188_VersionID': STATE.State.D188_VersionID,
+                'D188_Error': STATE.State.D188_Error,
+                'DeviceCount': STATE.Header.DeviceCount
+            }
+        )
 
-
-    def Unload(self):
-        '''
-        Unloads the DLL and frees resources.
-        '''
-        if hasattr(self, 'lib') and self.lib is not None:
-            del self.lib
-            self.lib = None
-            print('D188 DLL unloaded successfully.')
-        else:
-            print('DLL not loaded. Nothing to unload.')
-
-if __name__ == '__main__':
-    print('Example script:')
-    # Example usage
-    Selector = D188Controller()
-    Selector.Load()
-    Selector.Initialize()
-    time.sleep(0.1)
-    Selector.SetMode('USB')
-    time.sleep(0.1)
-    Selector.SetIndicator('ON')
-    time.sleep(0.1)
-    Selector.SetDelay(1) # can go as short as 0.1ms, but now 1 for safety
-    time.sleep(0.1)
-    Selector.SetChannel(8)
-    time.sleep(0.1)
-    Selector.GetState()
-    time.sleep(0.1)
-    Selector.Close
-    time.sleep(0.1)
-    Selector.Unload()
+if __name__ == "__main__":
+    d188 = D188Controller()
+    d188.Initialise()
+    d188.SetChannel(6)
+    d188.SetDelay(1)
+    d188.SetIndicator('ON')
+    d188.SetMode('USB')
+    d188.PrintState()
+    d188.Close()
