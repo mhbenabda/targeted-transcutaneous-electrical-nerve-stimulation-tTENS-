@@ -234,6 +234,7 @@ class DS8RController:
             value (float): acceptable amplitude in [0-1000] mA with one decimal precision
         '''
         if 0 <= value <= 1000:
+            value = round(value, 1)
             STATE = D128()
             self.UpdateGet(STATE)
             STATE.State.D128_State.DEMAND = int(value * 10) # function takes (mA * 10)

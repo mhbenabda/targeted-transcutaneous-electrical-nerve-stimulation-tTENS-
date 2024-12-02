@@ -7,8 +7,8 @@ from PyQt5.QtCore import QObject, QThread, pyqtSignal, QRegExp
 from PyQt5.QtGui import QRegExpValidator
 from PyQt5.uic import loadUi
 import sys
-from API.ds8r_controller_v2 import DS8RController
-from API.d188_controller_v2 import D188Controller
+from API.ds8r_controller import DS8RController
+from API.d188_controller import D188Controller
 import serial
 import time
 import csv
@@ -187,7 +187,7 @@ class Experiment_view(QMainWindow):
         self.total_channels = len(self.algo_settings['channels'])                   # get total number of channels to be explored
         self.SetChannelSequence(self.algo_settings['channels'][self.channel_idx])   # Turn on fist channel in the list
 
-        self.PB_STIMULATE.clicked.connect(self.max_threshold_detection)             # The FSM when the stimulation button is pressed 
+        self.PB_STIMULATE.clicked.connect(self.max_threshold_detection)             # The FSM is triggered when the stimulation button is pressed
 
     def set_fixed_row_items(self):
         '''
