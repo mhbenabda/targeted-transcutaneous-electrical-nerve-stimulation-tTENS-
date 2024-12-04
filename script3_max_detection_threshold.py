@@ -181,12 +181,12 @@ class Experiment_view(QMainWindow):
         self.L_LED.hide()
 
         self.exp_count = 0
-        self.minimums_list = []
+        self.maximums_list = []
         self.channel_idx = 0
         self.total_channels = len(self.algo_settings['channels'])                   # get total number of channels to be explored
         self.SetChannelSequence(self.algo_settings['channels'][self.channel_idx])   # Turn on fist channel in the list
 
-        self.PB_STIMULATE.clicked.connect(self.min_threshold_detection)             # The FSM is triggered when the stimulation button is pressed 
+        self.PB_STIMULATE.clicked.connect(self.max_threshold_detection)             # The FSM is triggered when the stimulation button is pressed 
 
     def set_fixed_row_items(self):
         '''
@@ -205,6 +205,65 @@ class Experiment_view(QMainWindow):
         selector.SetChannel(channel)   
         selector.Close()
         time.sleep(0.1)
+
+    def max_threshold_detection(self):
+        '''
+        Finite State Machine to find the maximum detection threshold based on a pain threshold
+        This function dynamically decides on the next stimulation point
+        It cahnges the value of "self.stimuli" that will be used in "runLongTask_stimulation()"
+        '''
+        if self.exp_count == 0:
+            self.count_inv_points = 0
+            self.list_inv_points = []
+            self.stimuli =  self.variable_param['start']
+            self.runLongTask_stimulation()                                      # run first stimulation
+
+        elif self.exp_count == 1: 
+            self.append_csv()                                                   # save entered response of the previous stimulation
+            self.pain_1 = self.SB_3.value()                                     # Save feedback from stimulation  t-1
+            
+            if self.pain_1 < 7:
+                self.stimuli = self.stimuli +  self.variable_param['step']      # Increment
+            else:
+                self.stimuli = self.stimuli -  self.variable_param['step']      # Decrement
+            self.runLongTask_stimulation()                                      # run second stimulation
+
+        else:
+            self.append_csv()                                                   # save entered response of the previous stimulation
+            
+            if self.count_inv_points == algo_settings['nbInversionPoints']:     # Has reached the number of detection points required 
+                print(self.list_inv_points)
+                self.maximums_list.append(self.calculate_avg(self.list_inv_points)) # Calculate min poin for this channel
+                
+                if self.channel_idx + 1 < self.total_channels:                  # Change to next channel
+                    self.channel_idx += 1
+                    self.SetChannelSequence(self.algo_settings['channels'][self.channel_idx])
+
+                    self.exp_count = 0                                          # Re-initialise necessary values for the new channel
+                    self.count_inv_points = 0
+                    self.list_inv_points = []
+                    self.stimuli =  self.variable_param['start']
+                else:                                                           # Experiment finished, close window
+                    self.close_window()
+            else:
+                self.pain_2 = self.pain_1                                       # Save stimulation feedback from t-2 
+                self.pain_1 = self.SB_3.value()                                 # Read stimulation of t-1
+               
+                if  self.pain_1 > 7:    # Decide on next stimulation
+                    if self.pain_2 < 7:
+                        self.count_inv_points += 1
+                        self.list_inv_points.append(self.stimuli)
+                        self.stimuli = self.stimuli -  self.variable_param['step']  # Decrement
+                    else:
+                        self.stimuli = self.stimuli -  self.variable_param['step']  # Decrement
+                else:
+                    self.stimuli = self.stimuli +  self.variable_param['step']      # Increment
+            
+            if self.stimuli > self.variable_param['stop']:
+                print('Stopped because cannot go beyond maximum threshold')
+                self.close_window()
+            
+            self.runLongTask_stimulation()                                      # run stimulation
 
     def min_threshold_detection(self):
         '''

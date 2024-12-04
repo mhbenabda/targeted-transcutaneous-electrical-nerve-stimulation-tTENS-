@@ -397,6 +397,9 @@ class DS8RController:
 
 
 if __name__ == "__main__":
+    '''
+    Note: Every communication opened with Initialise must be closed afterwards, otherwise get memory handeling problems
+    '''
     ds8r = DS8RController()
     ds8r.Initialise()
     ds8r.Mode('Bi-phasic')
