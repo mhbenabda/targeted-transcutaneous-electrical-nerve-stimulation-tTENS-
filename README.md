@@ -12,6 +12,8 @@ This project is a Python-based framework for conducting psychophysics experiment
 
 __Note:__ Be carefull this code uses the original DLL and not the proxy DLL provided by Digitimer! Both DLLs are downloaded automatically with the windows app provided on each device webpage.
 
+## Script 0
+
 
 <!-- MARKDOWN LINKS & IMAGES -->
 [DS8R-url]: https://www.digitimer.com/product/human-neurophysiology/peripheral-stimulators/ds8r-biphasic-constant-current-stimulator/
