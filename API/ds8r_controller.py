@@ -331,7 +331,7 @@ class DS8RController:
 
     def Cmd(self, command, *args):
         '''
-        This function just provides a different format for calling the previous functions:
+        This is just a dispatcher function that provides a different format for calling the previous functions:
         Mode, Polarity, Source, Demand, Pulsewidth, Dwell, Recovery
         Args:
             command (string): different commands
