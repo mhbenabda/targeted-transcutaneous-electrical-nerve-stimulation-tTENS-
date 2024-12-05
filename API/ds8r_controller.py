@@ -215,7 +215,7 @@ class DS8RController:
 
     def Source(self, src_str):
         '''
-        Set the source for the stimulus demand; USB or analog input.
+        Set the source for the stimulus demand: USB or analog input.
         Args:
             src_str (string): from self.DS8RSrc typedef
         '''
@@ -258,7 +258,7 @@ class DS8RController:
 
     def Dwell(self, value):
         '''
-        Set inter-pulse width. Controls the period between the end of the stimulus pulse and the start of the recovery pulse when BI-PHASIC mode is enabled.
+        Set inter-pulse width. Controls the period between the end of the first square and the start of the recovery square when BI-PHASIC mode is enabled.
         Args:
             value (int): acceptable interpulse width in [1-990] us 
         '''
