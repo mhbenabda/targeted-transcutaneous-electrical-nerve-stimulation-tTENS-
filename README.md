@@ -12,7 +12,13 @@ This project is a Python-based framework for conducting psychophysics experiment
 
 __Note:__ Be carefull this code uses the original DLL and not the proxy DLL provided by Digitimer! Both DLLs are downloaded automatically with the windows app provided on each device webpage.
 
-## Script 0
+## Script 0 - Mapping
+
+## Script 1 - Minimun Threshold Detection
+
+## Script 2 - Maximum Threshold Detection
+
+## Script 3 - Psychophysics of Pain
 
 
 <!-- MARKDOWN LINKS & IMAGES -->

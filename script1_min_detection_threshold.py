@@ -448,12 +448,11 @@ class Worker(QObject):
 
 if __name__ == '__main__':
     '''
-    
+    Description to be added ... !!!!!!!!!!!!!!!!!!!!!!!
     Notes:
     - Must start from a variable value ('start' key) that the subject doesn't feel
-    
     '''
-    # dummy variables
+    
     subject_info = {
         'subject_reference': 'Habib', # to be replaced by an anonynous reference
         'gender': 'Male',
@@ -482,6 +481,7 @@ if __name__ == '__main__':
         'stop': 5.0,
         'step': 0.25
     }
+
     # Start app
     app = QApplication(sys.argv)
     window = Experiment_view(fixed_param, algo_settings, variable_param, subject_info)
