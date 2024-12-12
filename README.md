@@ -18,7 +18,6 @@ __Note:__ Be carefull this code uses the original DLL and not the proxy DLL prov
 
 ## Script 2 - Maximum Threshold Detection
 
-## Script 3 - Psychophysics of Pain
 
 
 <!-- MARKDOWN LINKS & IMAGES -->
